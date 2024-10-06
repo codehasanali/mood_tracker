@@ -1,0 +1,55 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./mood_tracker.db"
+}
+
+generator client {
+  provider = "go run github.com/steebchen/prisma-client-go"
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  username    String   @unique
+  password    String
+  appPassword String?
+  moods       Mood[]
+  tags        Tag[]
+  foods       Food[]   // Yeni eklenen satır
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Food {
+  id       Int      @id @default(autoincrement())
+  name     String
+  calories Int
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Mood {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  emoji       String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  tags        Tag[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tag {
+  id       Int      @id @default(autoincrement())
+  name     String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   Int
+  moods    Mood[]
+  isPublic Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, userId])
+}
