@@ -2,60 +2,12 @@ import api from "../api";
 import { Food, UserFood } from "../types/Food";
 
 /**
- * Tüm yemekleri getirir.
- * @returns Food nesnelerinin bir dizisini içeren Promise.
- * @throws API çağrısı başarısız olursa hata fırlatır.
+ * Creates a new food item.
+ * @param foodData - The food data to create.
+ * @returns Promise containing the created Food object.
+ * @throws Error if the API call fails.
  */
-export const getAllFoods = async (): Promise<Food[]> => {
-  try {
-    const response = await api.get<Food[]>('/foods');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching all foods:', error);
-    throw error;
-  }
-};
-
-/**
- * Kullanıcıya ait yeni bir yemek ekler.
- * @param userFoodData - Eklenecek kullanıcı yemeği verisi.
- * @param userFoodData.food_id - Yemeğin ID'si.
- * @param userFoodData.quantity - Yemeğin miktarı.
- * @returns Oluşturulan UserFood nesnesini içeren bir Promise.
- * @throws API çağrısı başarısız olursa hata fırlatır.
- */
-export const addUserFood = async (userFoodData: { user_id: number; food_id: number; quantity: number }): Promise<UserFood> => {
-  try {
-    const response = await api.post<UserFood>('/user-foods', userFoodData);
-    return response.data;
-  } catch (error) {
-    console.error('Error adding user food:', error);
-    throw error;
-  }
-};
-
-/**
- * Giriş yapmış kullanıcıya ait tüm yemekleri getirir.
- * @returns UserFood nesnelerinin bir dizisini içeren Promise.
- * @throws API çağrısı başarısız olursa hata fırlatır.
- */
-export const getUserFoods = async (): Promise<UserFood[]> => {
-  try {
-    const response = await api.get<UserFood[]>('/user-foods');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching user foods:', error);
-    throw error;
-  }
-};
-
-/**
- * Yeni bir yemek oluşturur.
- * @param foodData - Oluşturulacak yemek verisi.
- * @returns Oluşturulan Food nesnesini içeren bir Promise.
- * @throws API çağrısı başarısız olursa hata fırlatır.
- */
-export const createFood = async (foodData: Omit<Food, 'id'>): Promise<Food> => {
+export const createFood = async (foodData: { name: string; calories: number; categoryId: number }): Promise<Food> => {
   try {
     const response = await api.post<Food>('/foods', foodData);
     return response.data;
@@ -66,17 +18,49 @@ export const createFood = async (foodData: Omit<Food, 'id'>): Promise<Food> => {
 };
 
 /**
- * Yemekleri arar.
- * @param query - Arama sorgusu.
- * @returns Food nesnelerinin bir dizisini içeren Promise.
- * @throws API çağrısı başarısız olursa hata fırlatır.
+ * Retrieves all foods for the logged-in user.
+ * @returns Promise containing an array of Food objects with their associated categories.
+ * @throws Error if the API call fails.
  */
-export const searchFoods = async (query: string): Promise<Food[]> => {
+export const getFoods = async (): Promise<Food[]> => {
   try {
-    const response = await api.get<Food[]>(`/foods/search?q=${encodeURIComponent(query)}`);
+    const response = await api.get<Food[]>('/foods');
     return response.data;
   } catch (error) {
-    console.error('Error searching foods:', error);
+    console.error('Error fetching foods:', error);
+    throw error;
+  }
+};
+
+/**
+ * Updates an existing food item.
+ * @param foodId - The ID of the food to update.
+ * @param foodData - The updated food data.
+ * @returns Promise containing the updated Food object.
+ * @throws Error if the API call fails.
+ */
+export const updateFood = async (foodId: number, foodData: { name: string; calories: number; categoryId: number }): Promise<Food> => {
+  try {
+    const response = await api.put<Food>(`/foods/${foodId}`, foodData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating food:', error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a food item.
+ * @param foodId - The ID of the food to delete.
+ * @returns Promise containing a success message.
+ * @throws Error if the API call fails.
+ */
+export const deleteFood = async (foodId: number): Promise<{ message: string }> => {
+  try {
+    const response = await api.delete<{ message: string }>(`/foods/${foodId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting food:', error);
     throw error;
   }
 };

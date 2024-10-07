@@ -17,17 +17,34 @@ model User {
   foods       Food[]   // Yeni eklenen satır
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  categories Category[]
 }
 
 model Food {
-  id       Int      @id @default(autoincrement())
-  name     String
-  calories Int
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId   Int
+  id         Int       @id @default(autoincrement())
+  name       String
+  calories   Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     Int
+  category   Category  @relation(fields: [categoryId], references: [id])
+  categoryId Int
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  moods     Mood[]
+  foods     Food[]   // Add this line
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([name, userId])
 }
+
 
 model Mood {
   id          Int      @id @default(autoincrement())
@@ -39,6 +56,7 @@ model Mood {
   tags        Tag[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  categories Category[]
 }
 
 model Tag {

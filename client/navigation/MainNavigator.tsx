@@ -4,11 +4,13 @@ import HomeScreen from '../screens/Home';
 import CalendarScreen from '../screens/Calendar';
 import CustomTabBar from '../components/CustomTab';
 import SettingsScreen from '../screens/Settings';
+import FoodSelectionScreen from '../screens/Food';
 
 type MainTabParamList = {
   Home: undefined;
   Settings: undefined;
   Calendar: undefined;
+  Food:undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -41,6 +43,13 @@ const MainTabNavigator: React.FC = () => {
       <Tab.Screen 
         name="Settings" 
         component={SettingsScreen}
+        listeners={{
+          focus: () => setHideTabBar(false),
+        }}
+      />
+        <Tab.Screen 
+        name="Food" 
+        component={FoodSelectionScreen}
         listeners={{
           focus: () => setHideTabBar(false),
         }}

@@ -45,6 +45,26 @@ func main() {
 		protected.POST("/tags", handler.CreateTag(client))
 		protected.GET("/tags", handler.GetAllTags(client))
 
+		// Category routes
+		categoriesGroup := protected.Group("/categories")
+		{
+			categoriesGroup.POST("", handler.CreateCategory(client))
+			categoriesGroup.GET("", handler.GetCategories(client))
+			categoriesGroup.GET("/:id", handler.GetCategoryByID(client))
+			categoriesGroup.PUT("/:id", handler.UpdateCategory(client))
+			categoriesGroup.DELETE("/:id", handler.DeleteCategory(client))
+			categoriesGroup.POST("/mood/:moodId/:categoryId", handler.AssignCategoryToMood(client))
+			categoriesGroup.DELETE("/mood/:moodId/:categoryId", handler.RemoveCategoryFromMood(client))
+		}
+
+		// Food routes
+		foodGroup := protected.Group("/foods")
+		{
+			foodGroup.POST("", handler.CreateFood(client))
+			foodGroup.GET("", handler.GetFoods(client))
+			foodGroup.PUT("/:id", handler.UpdateFood(client))
+			foodGroup.DELETE("/:id", handler.DeleteFood(client))
+		}
 	}
 
 	r.Run(":8080")

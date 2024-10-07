@@ -2,6 +2,7 @@ export interface Food {
     id: number;
     name: string;
     calories: number;
+    category:string |any;
   }
   
   export interface UserFood {
