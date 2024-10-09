@@ -11,10 +11,11 @@ import {
 import { useFonts, Roboto_400Regular, Roboto_700Bold } from '@expo-google-fonts/roboto';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
-import useAuth from '../hooks/useAuth';
 import { RegisterCredentials } from '../types/Auth';
 import CustomTextInput from '../components/CustomTextInput';
 import Alert from '../components/Alert';
+import useAuth from '../hooks/useAuth';
+
 
 const RegisterScreen: React.FC = () => {
   const { register } = useAuth();

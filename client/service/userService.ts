@@ -2,7 +2,11 @@ import api from "../api";
 import { getToken } from "../utils/storage";
 import { User } from "../types/Auth";
 
-
+/**
+ * Fetches the user profile from the API.
+ * @returns A Promise containing the User object.
+ * @throws Throws an error if the API call fails.
+ */
 export const getUserProfile = async (): Promise<User> => {
   try {
     const response = await api.get<User>('/user');
@@ -12,6 +16,13 @@ export const getUserProfile = async (): Promise<User> => {
     throw error;
   }
 };
+
+/**
+ * Updates the username of the current user.
+ * @param newUsername - The new username to set.
+ * @returns A Promise containing the updated User object.
+ * @throws Throws an error if the API call fails.
+ */
 export const updateUsername = async (newUsername: string): Promise<User> => {
   try {
     const token = await getToken();
@@ -32,7 +43,10 @@ export const updateUsername = async (newUsername: string): Promise<User> => {
   }
 };
 
-
+/**
+ * Deletes the current user's account.
+ * @throws Throws an error if the API call fails.
+ */
 export const deleteUser = async (): Promise<void> => {
   try {
     const token = await getToken();
@@ -52,6 +66,12 @@ export const deleteUser = async (): Promise<void> => {
   }
 };
 
+/**
+ * Updates the user's profile information.
+ * @param userData - An object containing the user data to update (currently only username).
+ * @returns A Promise containing the updated User object.
+ * @throws Throws an error if the API call fails.
+ */
 export const updateUser = async (userData: { username: string }): Promise<User> => {
   try {
     const token = await getToken();

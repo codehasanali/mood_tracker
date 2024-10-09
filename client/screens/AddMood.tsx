@@ -9,15 +9,26 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFonts, Roboto_400Regular, Roboto_700Bold } from '@expo-google-fonts/roboto';
 import { Ionicons } from '@expo/vector-icons';
-import Alert from '../components/Alert';
+import CustomAlert from '../components/Alert';
 import { addMood } from '../service/moodService';
 import { getTags, addTag } from '../service/tagService';
 import { MoodOption, moodOptions } from '../constants/moodOptions';
 import { normalize } from '../utils/normalize';
+import { Category } from '../types/Category';
+import { getCategories } from '../service/categoryService';
+import { Food, FoodInput } from '../service/foodService';
+import { useFood } from '../hooks/useFood';
+
+interface SelectedFood extends Food {
+  quantity: number;
+}
 
 const MoodOptionComponent: React.FC<{ 
   item: MoodOption; 
@@ -37,6 +48,12 @@ const MoodOptionComponent: React.FC<{
 ));
 
 const AddMood: React.FC = () => {
+  const navigation = useNavigation();
+  const { foods, isLoading, error, fetchFoods, addUserFoods } = useFood();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedFoods, setSelectedFoods] = useState<SelectedFood[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodOption | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -45,7 +62,6 @@ const AddMood: React.FC = () => {
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const navigation = useNavigation();
 
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
@@ -53,7 +69,61 @@ const AddMood: React.FC = () => {
   });
 
   useEffect(() => {
+    fetchFoods();
+    loadCategories();
     fetchTags();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const fetchedCategories = await getCategories();
+      setCategories(fetchedCategories);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      Alert.alert('Hata', 'Kategoriler yüklenemedi');
+    }
+  };
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchFoods();
+    await loadCategories();
+    setRefreshing(false);
+  }, [fetchFoods]);
+
+  const filteredFoods = useMemo(() => {
+    return selectedCategory
+      ? foods.filter((food) => food.categoryId === selectedCategory)
+      : foods;
+  }, [foods, selectedCategory]);
+
+  const handleCategoryPress = useCallback((categoryId: number) => {
+    setSelectedCategory((prevCategory) => {
+      const newCategory = categoryId === prevCategory ? null : categoryId;
+      fetchFoods();
+      return newCategory;
+    });
+  }, [fetchFoods]);
+
+  const handleFoodSelect = useCallback((food: Food) => {
+    setSelectedFoods(prev => {
+      const existingIndex = prev.findIndex(item => item.id === food.id);
+      if (existingIndex !== -1) {
+        return prev.filter((_, index) => index !== existingIndex);
+      }
+      return [...prev, { ...food, quantity: 1 }];
+    });
+  }, []);
+
+  const handleQuantityChange = useCallback((foodId: number, quantity: string) => {
+    const numQuantity = parseInt(quantity) || 0;
+    setSelectedFoods(prev => 
+      prev.map(item => 
+        item.id === foodId 
+          ? { ...item, quantity: numQuantity } 
+          : item
+      )
+    );
   }, []);
 
   const fetchTags = async () => {
@@ -110,6 +180,11 @@ const AddMood: React.FC = () => {
       return;
     }
   
+    if (selectedFoods.length === 0) {
+      Alert.alert('Hata', 'Lütfen en az bir yiyecek seçin.');
+      return;
+    }
+  
     try {
       const newMood = {
         title,
@@ -118,16 +193,24 @@ const AddMood: React.FC = () => {
         tags: selectedTags.map(id => parseInt(id, 10)),
       };
       await addMood(newMood);
+      const foodInputs: FoodInput[] = selectedFoods.map(({ id, name, calories, categoryId, quantity }) => ({
+        id,
+        name,
+        calories,
+        categoryId,
+        quantity
+      }));
+      await addUserFoods(foodInputs);
       
-      setAlertMessage('Duygu durumu başarıyla kaydedildi.');
+      setAlertMessage('Duygu durumu ve yiyecekler başarıyla kaydedildi.');
       setAlertType('success');
       navigation.goBack();
     } catch (error) {
-      console.error('Error saving mood:', error);
-      setAlertMessage('Duygu durumu kaydedilirken bir hata oluştu.');
+      console.error('Error saving mood and foods:', error);
+      setAlertMessage('Duygu durumu ve yiyecekler kaydedilirken bir hata oluştu.');
       setAlertType('error');
     }
-  }, [selectedMood, title, description, selectedTags, navigation]);
+  }, [selectedMood, title, description, selectedTags, selectedFoods, navigation, addUserFoods]);
 
   const renderMoodOption = useCallback(({ item }: { item: MoodOption }) => (
     <MoodOptionComponent
@@ -149,7 +232,15 @@ const AddMood: React.FC = () => {
   const memoizedMoodOptions = useMemo(() => moodOptions, []);
 
   if (!fontsLoaded) {
-    return null;
+    return <ActivityIndicator />;
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text>Hata: {error}</Text>
+      </View>
+    );
   }
 
   return (
@@ -164,12 +255,12 @@ const AddMood: React.FC = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
-        {alertMessage && <Alert type={alertType} message={alertMessage} />}
+        {alertMessage && <CustomAlert type={alertType} message={alertMessage} />}
 
         <FlatList
           data={memoizedMoodOptions}
           renderItem={renderMoodOption}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.id.toString()}
           numColumns={4}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.moodList}
@@ -218,8 +309,53 @@ const AddMood: React.FC = () => {
                   <Text style={styles.addTagButtonText}>Ekle</Text>
                 </TouchableOpacity>
               </View>
+              <Text style={styles.sectionTitle}>Yiyecekler</Text>
+              <FlatList
+                data={categories}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.categoryButton,
+                      selectedCategory === item.id && styles.selectedCategory,
+                    ]}
+                    onPress={() => handleCategoryPress(item.id)}
+                  >
+                    <Text style={styles.categoryButtonText}>{item.name}</Text>
+                  </TouchableOpacity>
+                )}
+                style={styles.categoryList}
+              />
+              <FlatList
+                data={filteredFoods}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.foodItem,
+                      selectedFoods.some(f => f.id === item.id) && styles.selectedFoodItem
+                    ]}
+                    onPress={() => handleFoodSelect(item)}
+                  >
+                    <Text style={styles.foodItemText}>{item.name}</Text>
+                    {selectedFoods.some(f => f.id === item.id) && (
+                      <TextInput
+                        style={styles.quantityInput}
+                        keyboardType="numeric"
+                        value={selectedFoods.find(f => f.id === item.id)?.quantity.toString() || ''}
+                        onChangeText={(text) => handleQuantityChange(item.id, text)}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                }
+              />
               <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>Durum bilgisi kaydet</Text>
+                <Text style={styles.saveButtonText}>Durum bilgisi ve yiyecekleri kaydet</Text>
               </TouchableOpacity>
             </>
           }
@@ -361,6 +497,49 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: normalize(14),
     fontFamily: 'Roboto_400Regular',
+  },
+  categoryList: {
+    paddingVertical: normalize(10),
+    backgroundColor: '#1E1E1E',
+  },
+  categoryButton: {
+    paddingHorizontal: normalize(20),
+    paddingVertical: normalize(10),
+    marginHorizontal: normalize(5),
+    borderRadius: normalize(20),
+    backgroundColor: '#2C2C2C',
+  },
+  selectedCategory: {
+    backgroundColor: '#4a90e2',
+  },
+  categoryButtonText: {
+    fontFamily: 'Roboto_400Regular',
+    color: '#FFFFFF',
+  },
+  foodItem: {
+    backgroundColor: '#1E1E1E',
+    padding: normalize(12),
+    marginBottom: normalize(8),
+    borderRadius: normalize(8),
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedFoodItem: {
+    backgroundColor: '#2C2C2C',
+  },
+  foodItemText: {
+    color: '#FFFFFF',
+    fontFamily: 'Roboto_400Regular',
+    fontSize: normalize(16),
+  },
+  quantityInput: {
+    backgroundColor: '#333333',
+    color: '#FFFFFF',
+    padding: normalize(4),
+    borderRadius: normalize(4),
+    width: normalize(40),
+    textAlign: 'center',
   },
 });
 

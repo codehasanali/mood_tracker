@@ -4,7 +4,7 @@ import HomeScreen from '../screens/Home';
 import CalendarScreen from '../screens/Calendar';
 import CustomTabBar from '../components/CustomTab';
 import SettingsScreen from '../screens/Settings';
-import FoodSelectionScreen from '../screens/Food';
+
 
 type MainTabParamList = {
   Home: undefined;
@@ -47,13 +47,7 @@ const MainTabNavigator: React.FC = () => {
           focus: () => setHideTabBar(false),
         }}
       />
-        <Tab.Screen 
-        name="Food" 
-        component={FoodSelectionScreen}
-        listeners={{
-          focus: () => setHideTabBar(false),
-        }}
-      />
+      
     </Tab.Navigator>
   );
 };

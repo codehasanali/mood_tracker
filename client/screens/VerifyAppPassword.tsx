@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,6 +24,15 @@ const VerifyAppPasswordScreen: React.FC = () => {
     Roboto_400Regular,
     Roboto_700Bold,
   });
+
+  useEffect(() => {
+    if (alertMessage) {
+      const timer = setTimeout(() => {
+        setAlertMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [alertMessage]);
 
   const handleVerifyPassword = useCallback(async () => {
     try {
@@ -60,7 +69,11 @@ const VerifyAppPasswordScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {alertMessage && <Alert type={alertType} message={alertMessage} />}
+      {alertMessage && (
+        <View style={styles.alertContainer}>
+          <Alert type={alertType} message={alertMessage} />
+        </View>
+      )}
       <Text style={styles.title}>Uygulama Şifresini Doğrula</Text>
       <Text style={styles.subtitle}>Lütfen uygulama şifrenizi girin</Text>
       
@@ -87,7 +100,7 @@ const VerifyAppPasswordScreen: React.FC = () => {
         style={[styles.button, styles.logoutButton]} 
         onPress={handleLogout}
       >
-        <Text style={styles.buttonText}>Geri dön.</Text>
+        <Text style={styles.buttonText}>Geri dön</Text>
       </TouchableOpacity>
     </View>
   );
@@ -100,6 +113,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     backgroundColor: '#121212',
+  },
+  alertContainer: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    right: 20,
+    zIndex: 1,
   },
   title: {
     fontFamily: 'Roboto_700Bold',

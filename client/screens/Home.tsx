@@ -168,7 +168,7 @@ const HomeScreen: React.FC = () => {
       <FlatList
         data={item.moods}
         renderItem={renderMoodItem}
-        keyExtractor={(mood) => mood.id}
+        keyExtractor={(mood) => mood.id.toString()}
         scrollEnabled={false}
       />
     </View>

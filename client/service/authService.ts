@@ -72,12 +72,13 @@ export const getCurrentUser = async (): Promise<AuthResponse> => {
 /**
  * Kullanıcının uygulama şifresini ayarlar.
  * @param password - Ayarlanacak uygulama şifresi.
+ * @param userId - Kullanıcının ID'si.
  * @returns Başarı mesajı.
  * @throws İstek başarısız olursa hata fırlatır.
  */
-export const apiSetAppPassword = async (password: string): Promise<{ message: string }> => {
+export const apiSetAppPassword = async (password: string, userId: number): Promise<{ message: string }> => {
   try {
-    const response = await api.post<{ message: string }>('/auth/set-app-password', { appPassword: password });
+    const response = await api.post<{ message: string }>('/auth/set-app-password', { appPassword: password, userId });
     return response.data;
   } catch (error) {
     console.error('Uygulama şifresi ayarlanırken hata oluştu:', error);
@@ -88,12 +89,13 @@ export const apiSetAppPassword = async (password: string): Promise<{ message: st
 /**
  * Kullanıcının uygulama şifresini doğrular.
  * @param password - Doğrulanacak uygulama şifresi.
+ * @param userId - Kullanıcının ID'si.
  * @returns Doğrulama sonucu.
  * @throws İstek başarısız olursa hata fırlatır.
  */
-export const apiVerifyAppPassword = async (password: string): Promise<boolean> => {
+export const apiVerifyAppPassword = async (password: string, userId: number): Promise<boolean> => {
   try {
-    const response = await api.post<{ message: string }>('/auth/verify-app-password', { appPassword: password });
+    const response = await api.post<{ message: string }>('/auth/verify-app-password', { appPassword: password, userId });
     return response.data.message === 'Uygulama şifresi doğrulandı';
   } catch (error) {
     if (error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response && 'status' in error.response && error.response.status === 401) {
@@ -108,12 +110,13 @@ export const apiVerifyAppPassword = async (password: string): Promise<boolean> =
 
 /**
  * Kullanıcının uygulama şifresinin ayarlanıp ayarlanmadığını kontrol eder.
+ * @param userId - Kullanıcının ID'si.
  * @returns Uygulama şifresinin ayarlanıp ayarlanmadığı bilgisi.
  * @throws İstek başarısız olursa hata fırlatır.
  */
-export const checkAppPasswordSet = async (): Promise<boolean> => {
+export const checkAppPasswordSet = async (userId: number): Promise<boolean> => {
   try {
-    const response = await api.get<{ isSet: boolean }>('/auth/check-app-password');
+    const response = await api.get<{ isSet: boolean }>(`/auth/check-app-password`);
     return response.data.isSet;
   } catch (error) {
     console.error('Uygulama şifresi kontrolü sırasında hata oluştu:', error);
@@ -123,12 +126,13 @@ export const checkAppPasswordSet = async (): Promise<boolean> => {
 
 /**
  * Kullanıcının uygulama şifresinin durumunu kontrol eder.
+ * @param userId - Kullanıcının ID'si.
  * @returns Uygulama şifresinin durumu.
  * @throws İstek başarısız olursa hata fırlatır.
  */
-export const apiCheckAppPasswordStatus = async (): Promise<{ isSet: boolean }> => {
+export const apiCheckAppPasswordStatus = async (userId: number): Promise<{ isSet: boolean }> => {
   try {
-    const response = await api.get<{ isSet: boolean }>('/auth/check-app-password');
+    const response = await api.get<{ isSet: boolean }>(`/auth/check-app-password`);
     return response.data;
   } catch (error) {
     console.error('Uygulama şifresi durumu kontrolü sırasında hata oluştu:', error);

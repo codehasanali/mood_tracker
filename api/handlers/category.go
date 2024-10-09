@@ -2,6 +2,7 @@ package handler
 
 import (
 	"api/prisma/db"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -12,73 +13,65 @@ type CategoryInput struct {
 	Name string `json:"name" binding:"required"`
 }
 
-// CreateCategory creates a new category for the authenticated user
+// CreateCategory creates a new category
 func CreateCategory(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input CategoryInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Convert userID to int
-		userIDInt := int(userID.(uint))
-
-		// Check if category already exists for this user
+		// Check if category with the same name already exists for this user
 		existingCategory, err := client.Category.FindFirst(
 			db.Category.Name.Equals(input.Name),
-			db.Category.User.Where(
-				db.User.ID.Equals(userIDInt),
-			),
+			db.Category.UserID.Equals(userID),
 		).Exec(c.Request.Context())
 
 		if err == nil && existingCategory != nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Category with this name already exists"})
+			c.JSON(http.StatusConflict, gin.H{"error": "Bu isimde bir kategori zaten mevcut"})
 			return
 		}
 
-		// Create category
-		category, err := client.Category.CreateOne(
+		createdCategory, err := client.Category.CreateOne(
 			db.Category.Name.Set(input.Name),
 			db.Category.User.Link(
-				db.User.ID.Equals(userIDInt),
+				db.User.ID.Equals(userID),
 			),
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create category: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kategori oluşturulamadı: " + err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusCreated, category)
+		c.JSON(http.StatusCreated, createdCategory)
 	}
 }
 
 // GetCategories returns all categories for the authenticated user
 func GetCategories(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
 		categories, err := client.Category.FindMany(
-			db.Category.User.Where(
-				db.User.ID.Equals(int(userID.(uint))),
-			),
+			db.Category.UserID.Equals(userID),
 		).With(
 			db.Category.Moods.Fetch(),
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch categories: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kategoriler getirilemedi: " + err.Error()})
 			return
 		}
 
@@ -86,32 +79,30 @@ func GetCategories(client *db.PrismaClient) gin.HandlerFunc {
 	}
 }
 
-// GetCategoryByID returns a specific category by ID
+// GetCategoryByID returns a specific category by ID for the authenticated user
 func GetCategoryByID(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		categoryID, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kategori ID'si"})
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
 		category, err := client.Category.FindFirst(
 			db.Category.ID.Equals(categoryID),
-			db.Category.User.Where(
-				db.User.ID.Equals(int(userID.(uint))),
-			),
+			db.Category.UserID.Equals(userID),
 		).With(
 			db.Category.Moods.Fetch(),
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Kategori bulunamadı"})
 			return
 		}
 
@@ -119,81 +110,88 @@ func GetCategoryByID(client *db.PrismaClient) gin.HandlerFunc {
 	}
 }
 
-// UpdateCategory updates an existing category
+// UpdateCategory updates an existing category for the authenticated user
 func UpdateCategory(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input CategoryInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz girdi: " + err.Error()})
 			return
 		}
 
 		categoryID, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kategori ID'si"})
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Verify category belongs to user
+		existingCategory, err := client.Category.FindFirst(
+			db.Category.ID.Equals(categoryID),
+			db.Category.UserID.Equals(userID),
+		).Exec(c.Request.Context())
+
+		if err != nil || existingCategory == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Kategori bulunamadı veya kullanıcıya ait değil"})
 			return
 		}
 
 		// Check if new name already exists for this user (excluding current category)
-		existingCategory, err := client.Category.FindFirst(
+		duplicateCategory, err := client.Category.FindFirst(
 			db.Category.Name.Equals(input.Name),
-			db.Category.User.Where(
-				db.User.ID.Equals(int(userID.(uint))),
-			),
 			db.Category.ID.Not(categoryID),
+			db.Category.UserID.Equals(userID),
 		).Exec(c.Request.Context())
 
-		if err == nil && existingCategory != nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Category with this name already exists"})
+		if err == nil && duplicateCategory != nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Bu isimde bir kategori zaten mevcut"})
 			return
 		}
 
-		category, err := client.Category.FindUnique(
+		updatedCategory, err := client.Category.FindUnique(
 			db.Category.ID.Equals(categoryID),
 		).Update(
 			db.Category.Name.Set(input.Name),
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update category: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kategori güncellenemedi: " + err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, category)
+		c.JSON(http.StatusOK, updatedCategory)
 	}
 }
 
-// DeleteCategory deletes a category
+// DeleteCategory deletes a category for the authenticated user
 func DeleteCategory(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		categoryID, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kategori ID'si"})
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Ensure the category belongs to the authenticated user
-		category, err := client.Category.FindFirst(
+		// Verify category belongs to user before deletion
+		existingCategory, err := client.Category.FindFirst(
 			db.Category.ID.Equals(categoryID),
-			db.Category.User.Where(
-				db.User.ID.Equals(int(userID.(uint))),
-			),
+			db.Category.UserID.Equals(userID),
 		).Exec(c.Request.Context())
 
-		if err != nil || category == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found or does not belong to the user"})
+		if err != nil || existingCategory == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Kategori bulunamadı veya kullanıcıya ait değil"})
 			return
 		}
 
@@ -202,68 +200,67 @@ func DeleteCategory(client *db.PrismaClient) gin.HandlerFunc {
 		).Delete().Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete category: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kategori silinemedi: " + err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Category deleted successfully"})
+		c.JSON(http.StatusOK, gin.H{"message": "Kategori başarıyla silindi"})
 	}
 }
 
-// AssignCategoryToMood assigns a category to a mood
+// AssignCategoryToMood assigns a category to a mood for the authenticated user
 func AssignCategoryToMood(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		moodID, err := strconv.Atoi(c.Param("moodId"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid mood ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz ruh hali ID'si"})
 			return
 		}
 
 		categoryID, err := strconv.Atoi(c.Param("categoryId"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kategori ID'si"})
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
-			return
-		}
-		// Convert userID to uint
-		userIDUint, ok := userID.(uint)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Verify both mood and category belong to user
+		// Verify mood belongs to user
 		mood, err := client.Mood.FindFirst(
 			db.Mood.ID.Equals(moodID),
-			db.Mood.User.Where(
-				db.User.ID.Equals(int(userIDUint)),
-			),
+			db.Mood.UserID.Equals(userID),
 		).With(
 			db.Mood.Categories.Fetch(),
 		).Exec(c.Request.Context())
 
 		if err != nil || mood == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mood not found or does not belong to the user"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Ruh hali bulunamadı veya kullanıcıya ait değil"})
 			return
 		}
 
+		// Verify category belongs to user
 		category, err := client.Category.FindFirst(
 			db.Category.ID.Equals(categoryID),
-			db.Category.User.Where(
-				db.User.ID.Equals(int(userIDUint)),
-			),
+			db.Category.UserID.Equals(userID),
 		).Exec(c.Request.Context())
 
 		if err != nil || category == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found or does not belong to the user"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Kategori bulunamadı veya kullanıcıya ait değil"})
 			return
 		}
-		// Assign category to mood
+
+		// Check if the category is already assigned to the mood
+		for _, existingCategory := range mood.Categories() {
+			if existingCategory.ID == categoryID {
+				c.JSON(http.StatusConflict, gin.H{"error": "Bu kategori zaten ruh haline atanmış"})
+				return
+			}
+		}
+
 		updatedMood, err := client.Mood.FindUnique(
 			db.Mood.ID.Equals(moodID),
 		).Update(
@@ -273,54 +270,69 @@ func AssignCategoryToMood(client *db.PrismaClient) gin.HandlerFunc {
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign category to mood: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kategori ruh haline atanamadı: " + err.Error()})
 			return
 		}
 
-		if updatedMood == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mood not found after update"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Category assigned to mood successfully", "mood": updatedMood})
+		c.JSON(http.StatusOK, gin.H{"message": "Kategori ruh haline başarıyla atandı", "mood": updatedMood})
 	}
 }
 
-// RemoveCategoryFromMood removes a category from a mood
+// RemoveCategoryFromMood removes a category from a mood for the authenticated user
 func RemoveCategoryFromMood(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		moodID, err := strconv.Atoi(c.Param("moodId"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid mood ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz ruh hali ID'si"})
 			return
 		}
 
 		categoryID, err := strconv.Atoi(c.Param("categoryId"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid category ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kategori ID'si"})
 			return
 		}
 
-		userIDInterface, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		userID, err := getUserIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		userIDUint, ok := userIDInterface.(uint)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		// Verify that both mood and category belong to the user
+		mood, err := client.Mood.FindFirst(
+			db.Mood.ID.Equals(moodID),
+			db.Mood.UserID.Equals(userID),
+		).With(
+			db.Mood.Categories.Fetch(),
+		).Exec(c.Request.Context())
+
+		if err != nil || mood == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Ruh hali bulunamadı veya kullanıcıya ait değil"})
 			return
 		}
 
-		// Verify that the category belongs to the user
 		category, err := client.Category.FindFirst(
 			db.Category.ID.Equals(categoryID),
-			db.Category.UserID.Equals(int(userIDUint)),
+			db.Category.UserID.Equals(userID),
 		).Exec(c.Request.Context())
 
 		if err != nil || category == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found or does not belong to the user"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Kategori bulunamadı veya kullanıcıya ait değil"})
+			return
+		}
+
+		// Check if the category is assigned to the mood
+		categoryFound := false
+		for _, existingCategory := range mood.Categories() {
+			if existingCategory.ID == categoryID {
+				categoryFound = true
+				break
+			}
+		}
+
+		if !categoryFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bu kategori ruh haline atanmamış"})
 			return
 		}
 
@@ -333,10 +345,22 @@ func RemoveCategoryFromMood(client *db.PrismaClient) gin.HandlerFunc {
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove category from mood: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kategori ruh halinden kaldırılamadı: " + err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Category removed from mood successfully"})
+		c.JSON(http.StatusOK, gin.H{"message": "Kategori ruh halinden başarıyla kaldırıldı"})
 	}
+}
+
+// getUserIDFromContext extracts and validates the user ID from the context
+func getUserIDFromContext(c *gin.Context) (int, error) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		return 0, errors.New("Kullanıcı kimliği bağlamda bulunamadı")
+	}
+
+	// Convert uint to int
+	userIDInt := int(userID.(uint))
+	return userIDInt, nil
 }

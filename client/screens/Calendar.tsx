@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image, FlatList } from 'react-native';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import useMood from '../hooks/useMood';
+import { useFood } from '../hooks/useFood';
 import { tr } from 'date-fns/locale';
+import { Food } from '../types/Food';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const scale = SCREEN_WIDTH / 320;
@@ -15,12 +17,24 @@ const normalize = (size: number) => Math.round(size * scale);
 
 const DAY_SIZE = SCREEN_WIDTH / 7 - normalize(10);
 
+interface Mood {
+  id: string;
+  emoji: string;
+  title: string;
+  description: string;
+  createdAt: string;
+  tags?: Array<{ id: string; name: string }>;
+  image?: string;
+}
+
 const CalendarWithPicker: React.FC = () => {
   const navigation = useNavigation();
   const { moods, fetchMoods } = useMood();
+  const { foods, fetchFoods } = useFood();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [dailyMood, setDailyMood] = useState<any[]>([]);
+  const [dailyMood, setDailyMood] = useState<Mood[]>([]);
+  const [dailyFood, setDailyFood] = useState<Food[]>([]);
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [yearSelectorVisible, setYearSelectorVisible] = useState(false);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
@@ -29,18 +43,21 @@ const CalendarWithPicker: React.FC = () => {
 
   useEffect(() => {
     fetchMoods();
-  }, [fetchMoods]);
+    fetchFoods();
+  }, [fetchMoods, fetchFoods]);
 
   useFocusEffect(
     useCallback(() => {
       fetchMoods();
+      fetchFoods();
       return () => {
         bottomSheetRef.current?.close();
         setIsBottomSheetOpen(false);
         setDailyMood([]);
+        setDailyFood([]);
         setSelectedDate(null);
       };
-    }, [fetchMoods])
+    }, [fetchMoods, fetchFoods])
   );
 
   useEffect(() => {
@@ -68,19 +85,22 @@ const CalendarWithPicker: React.FC = () => {
       bottomSheetRef.current?.close();
       setIsBottomSheetOpen(false);
       setDailyMood([]);
+      setDailyFood([]);
       setSelectedDate(null);
     }
   }, [isFocused]);
 
   const handleDatePress = useCallback((date: string) => {
     const moodForDate = moods.filter(mood => mood.createdAt.startsWith(date));
-    if (moodForDate.length > 0) {
+    const foodForDate = foods.filter(food => food.createdAt?.startsWith(date) ?? false);
+    if (moodForDate.length > 0 || foodForDate.length > 0) {
       setDailyMood(moodForDate);
+      setDailyFood(foodForDate);
       setSelectedDate(date);
       bottomSheetRef.current?.expand();
       setIsBottomSheetOpen(true);
     }
-  }, [moods]);
+  }, [moods, foods]);
 
   const changeMonth = useCallback((direction: 'prev' | 'next') => {
     setCurrentDate(prevDate => {
@@ -117,7 +137,8 @@ const CalendarWithPicker: React.FC = () => {
           {days.map(day => {
             const dateString = format(day, 'yyyy-MM-dd');
             const moodForDate = moods.find(mood => mood.createdAt.startsWith(dateString));
-            const emoji = moodForDate ? moodForDate.emoji : '';
+            const foodForDate = foods.find(food => food.createdAt.startsWith(dateString));
+            const emoji = moodForDate ? moodForDate.emoji : (foodForDate ? '🍽️' : '');
             const isOutsideMonth = viewMode === 'month' && format(day, 'MM') !== format(currentDate, 'MM');
 
             return (
@@ -135,7 +156,7 @@ const CalendarWithPicker: React.FC = () => {
         </View>
       </>
     );
-  }, [currentDate, viewMode, moods, handleDatePress]);
+  }, [currentDate, viewMode, moods, foods, handleDatePress]);
 
   const renderYearSelector = useCallback(() => {
     const currentYear = currentDate.getFullYear();
@@ -157,7 +178,7 @@ const CalendarWithPicker: React.FC = () => {
     );
   }, [currentDate, changeYear]);
 
-  const renderMoodDetail = useCallback((mood: any) => {
+  const renderMoodDetail = useCallback((mood: Mood) => {
     const getRandomPastelColor = () => `rgb(${Math.floor(Math.random() * 55 + 200)},${Math.floor(Math.random() * 55 + 200)},${Math.floor(Math.random() * 55 + 200)})`;
     const backgroundColor = getRandomPastelColor();
 
@@ -166,7 +187,7 @@ const CalendarWithPicker: React.FC = () => {
         <View style={styles.moodHeader}>
           <Text style={styles.moodEmoji}>{mood.emoji}</Text>
           <View style={styles.moodTags}>
-            {mood.tags && mood.tags.map((tag: any) => (
+            {mood.tags && mood.tags.map((tag) => (
               <View key={tag.id} style={styles.tag}>
                 <Text style={styles.tagText}>{tag.name}</Text>
               </View>
@@ -178,6 +199,27 @@ const CalendarWithPicker: React.FC = () => {
         {mood.image && (
           <Image source={{ uri: mood.image }} style={styles.moodImage} />
         )}
+      </View>
+    );
+  }, []);
+
+  const renderFoodDetail = useCallback((food: Food) => {
+    const getRandomPastelColor = () => `rgb(${Math.floor(Math.random() * 55 + 200)},${Math.floor(Math.random() * 55 + 200)},${Math.floor(Math.random() * 55 + 200)})`;
+    const backgroundColor = getRandomPastelColor();
+
+    return (
+      <View key={food.id} style={[styles.moodDetail, { backgroundColor }]}>
+        <View style={styles.moodHeader}>
+          <Text style={styles.moodEmoji}>🍽️</Text>
+          <View style={styles.moodTags}>
+            {food.tags?.map((tag:any) => (
+              <View key={tag.id} style={styles.tag}>
+                <Text style={styles.tagText}>{tag.name}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+        <Text style={styles.moodTitle}>{food.name}</Text>
       </View>
     );
   }, []);
@@ -226,6 +268,7 @@ const CalendarWithPicker: React.FC = () => {
           setIsBottomSheetOpen(index !== -1);
           if (index === -1) {
             setDailyMood([]);
+            setDailyFood([]);
             setSelectedDate(null);
           }
         }}
@@ -236,6 +279,7 @@ const CalendarWithPicker: React.FC = () => {
           </Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.bottomSheetScrollContent}>
             {dailyMood.map(renderMoodDetail)}
+            {dailyFood.map(renderFoodDetail)}
           </ScrollView>
         </View>
       </BottomSheet>

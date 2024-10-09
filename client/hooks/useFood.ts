@@ -1,135 +1,96 @@
 import { useState, useCallback } from 'react';
-import { Food, UserFood } from '../types/Food';
-import { getAllFoods, addUserFood, getUserFoods, createFood, searchFoods } from '../service/foodService';
-import { getUserId } from '../utils/storage';
+import * as foodService from '../service/foodService';
+import { Food, FoodInput, UserFood } from '../types/Food';
 
 export const useFood = () => {
   const [foods, setFoods] = useState<Food[]>([]);
-  const [userFoods, setUserFoods] = useState<UserFood[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAllFoods = useCallback(async () => {
+  const fetchFoods = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedFoods = await getAllFoods();
-      setFoods(fetchedFoods);
+      const fetchedFoods = await foodService.getFoods();
+      setFoods(fetchedFoods as Food[]);
     } catch (err) {
-      setError('Yemekleri getirirken bir hata oluştu.');
+      setError('Failed to fetch foods');
+      console.error('Error fetching foods:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const addUserFoods = useCallback(async (selectedFoods: FoodInput[]) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const addedFoods = await foodService.addMultipleUserFoods(selectedFoods);
+      setFoods(prevFoods => [...prevFoods, ...(addedFoods as Food[])]);
+    } catch (err) {
+      setError('Failed to add foods');
+      console.error('Error adding foods:', err);
       throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const addNewUserFood = useCallback(async (foodId: number, quantity: number) => {
+  const addFood = useCallback(async (food: FoodInput) => {
     setIsLoading(true);
     setError(null);
     try {
-      const userId = await getUserId();
-      if (!userId) {
-        throw new Error('User is not authenticated');
-      }
-      const userFoodData = {
-        user_id: parseInt(userId, 10),
-        food_id: foodId,
-        quantity: quantity
-      };
-      
-      const newUserFood = await addUserFood(userFoodData);
-      
-      if (!newUserFood) {
-        throw new Error('Kullanıcı yemeği eklenemedi');
-      }
-      
-      setUserFoods(prevUserFoods => [...prevUserFoods, newUserFood]);
-      return newUserFood;
+      const newFood = await foodService.createFood(food);
+      setFoods(prevFoods => [...prevFoods, newFood as Food]);
     } catch (err) {
-      setError('Kullanıcı yemeği eklenirken bir hata oluştu.');
-      throw err;
+      setError('Failed to add food');
+      console.error('Error adding food:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const addMultipleUserFoods = useCallback(async (foods: { food_id: number; quantity: number }[]) => {
+  const editFood = useCallback(async (id: number, food: Partial<FoodInput>) => {
     setIsLoading(true);
     setError(null);
     try {
-      const userId = await getUserId();
-      if (!userId) {
-        throw new Error('User is not authenticated');
-      }
-      const results = await Promise.all(
-        foods.map(({ food_id, quantity }) => 
-          addUserFood({ user_id: parseInt(userId, 10), food_id, quantity })
-        )
-      );
-      
-      setUserFoods(prevUserFoods => [...prevUserFoods, ...results]);
-      return results;
+      const updatedFood = await foodService.updateFood(id, food);
+      setFoods(prevFoods => prevFoods.map(f => f.id === id ? updatedFood as Food : f));
     } catch (err) {
-      setError('Kullanıcı yemekleri eklenirken bir hata oluştu.');
-      throw err;
+      setError('Failed to update food');
+      console.error('Error updating food:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const fetchUserFoods = useCallback(async () => {
+  const removeFood = useCallback(async (id: number) => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedUserFoods = await getUserFoods();
-      setUserFoods(fetchedUserFoods);
+      await foodService.deleteFood(id);
+      setFoods(prevFoods => prevFoods.filter(f => f.id !== id));
     } catch (err) {
-      setError('Kullanıcı yemeklerini getirirken bir hata oluştu.');
-      throw err;
+      setError('Failed to delete food');
+      console.error('Error deleting food:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const addNewFood = useCallback(async (foodData: Omit<Food, 'id'>) => {
+  const fetchFoodsByDate = useCallback(async (date: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const newFood = await createFood(foodData);
-      setFoods(prevFoods => [...prevFoods, newFood]);
-      return newFood;
+      const fetchedFoods = await foodService.getFoodsByDate(date);
+      setFoods(fetchedFoods as Food[]);
     } catch (err) {
-      setError('Yeni yemek eklenirken bir hata oluştu.');
-      throw err;
+      setError('Failed to fetch foods by date');
+      console.error('Error fetching foods by date:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const searchForFoods = useCallback(async (query: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const searchResults = await searchFoods(query);
-      return searchResults;
-    } catch (err) {
-      setError('Yemek araması yapılırken bir hata oluştu.');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  return {
-    foods,
-    userFoods,
-    isLoading,
-    error,
-    fetchAllFoods,
-    addNewUserFood,
-    addMultipleUserFoods,
-    fetchUserFoods,
-    addNewFood,
-    searchForFoods,
-  };
+  return { foods, isLoading, error, fetchFoods, addUserFoods, addFood, editFood, removeFood, fetchFoodsByDate };
 };
