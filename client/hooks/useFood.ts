@@ -1,18 +1,18 @@
 import { useState, useCallback } from 'react';
 import * as foodService from '../service/foodService';
-import { Food, FoodInput, UserFood } from '../types/Food';
+import { Food, FoodInput, UserFoodInput } from '../types/Food';
 
 export const useFood = () => {
   const [foods, setFoods] = useState<Food[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchFoods = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedFoods = await foodService.getFoods();
-      setFoods(fetchedFoods as Food[]);
+      const fetchedFoods: any[] = await foodService.getFoods();
+      setFoods(fetchedFoods);
     } catch (err) {
       setError('Failed to fetch foods');
       console.error('Error fetching foods:', err);
@@ -21,15 +21,16 @@ export const useFood = () => {
     }
   }, []);
 
-  const addUserFoods = useCallback(async (selectedFoods: FoodInput[]) => {
+  const addUserFoods = useCallback(async (userFoods: any[]) => {
     setIsLoading(true);
     setError(null);
     try {
-      const addedFoods = await foodService.addMultipleUserFoods(selectedFoods);
-      setFoods(prevFoods => [...prevFoods, ...(addedFoods as Food[])]);
+      const addedFoods:any = await foodService.addUserFoods(userFoods);
+      setFoods((prevFoods: Food[]) => [...prevFoods, ...addedFoods]);
+      return addedFoods;
     } catch (err) {
-      setError('Failed to add foods');
-      console.error('Error adding foods:', err);
+      setError('Failed to add user foods');
+      console.error('Error adding user foods:', err);
       throw err;
     } finally {
       setIsLoading(false);
@@ -40,8 +41,8 @@ export const useFood = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const newFood = await foodService.createFood(food);
-      setFoods(prevFoods => [...prevFoods, newFood as Food]);
+      const newFood: any = await foodService.createFood(food);
+      setFoods(prevFoods => [...prevFoods, newFood]);
     } catch (err) {
       setError('Failed to add food');
       console.error('Error adding food:', err);
@@ -54,8 +55,8 @@ export const useFood = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const updatedFood = await foodService.updateFood(id, food);
-      setFoods(prevFoods => prevFoods.map(f => f.id === id ? updatedFood as Food : f));
+      const updatedFood: any = await foodService.updateFood(id, food);
+      setFoods(prevFoods => prevFoods.map(f => f.id === id ? updatedFood : f));
     } catch (err) {
       setError('Failed to update food');
       console.error('Error updating food:', err);
@@ -82,8 +83,8 @@ export const useFood = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedFoods = await foodService.getFoodsByDate(date);
-      setFoods(fetchedFoods as Food[]);
+      const fetchedFoods: any[] = await foodService.getFoodsByDate(date);
+      setFoods(fetchedFoods);
     } catch (err) {
       setError('Failed to fetch foods by date');
       console.error('Error fetching foods by date:', err);

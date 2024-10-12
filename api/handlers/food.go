@@ -15,11 +15,13 @@ type FoodInput struct {
 	CategoryID int    `json:"categoryId" binding:"required"`
 }
 
-type MultipleFoodInput struct {
-	Foods []FoodInput `json:"foods" binding:"required,dive"`
+type UserFoodInput struct {
+	FoodID   int       `json:"foodId" binding:"required"`
+	Quantity int       `json:"quantity" binding:"required"`
+	EatenAt  time.Time `json:"eatenAt" binding:"required"`
 }
 
-// CreateFood adds a new food item
+// CreateFood adds a new food item to the global catalog
 func CreateFood(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input FoodInput
@@ -28,31 +30,19 @@ func CreateFood(client *db.PrismaClient) gin.HandlerFunc {
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
-			return
-		}
-
-		userIDInt := int(userID.(uint))
-
-		// Check if category exists and belongs to the user
-		category, err := client.Category.FindFirst(
+		// Check if category exists
+		category, err := client.Category.FindUnique(
 			db.Category.ID.Equals(input.CategoryID),
-			db.Category.UserID.Equals(userIDInt),
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found or does not belong to the user"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
 			return
 		}
 
-		// Check if food already exists for this user
+		// Check if food already exists
 		existingFood, err := client.Food.FindFirst(
 			db.Food.Name.Equals(input.Name),
-			db.Food.User.Where(
-				db.User.ID.Equals(userIDInt),
-			),
 		).Exec(c.Request.Context())
 
 		if err == nil && existingFood != nil {
@@ -65,9 +55,6 @@ func CreateFood(client *db.PrismaClient) gin.HandlerFunc {
 		food, err := client.Food.CreateOne(
 			db.Food.Name.Set(input.Name),
 			db.Food.Calories.Set(input.Calories),
-			db.Food.User.Link(
-				db.User.ID.Equals(userIDInt),
-			),
 			db.Food.Category.Link(
 				db.Category.ID.Equals(category.ID),
 			),
@@ -82,15 +69,9 @@ func CreateFood(client *db.PrismaClient) gin.HandlerFunc {
 	}
 }
 
-// GetFoods fetches food items for the user, filtered by category if provided
+// GetFoods fetches all food items from the global catalog, filtered by category if provided
 func GetFoods(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
-			return
-		}
-
 		categoryIDStr := c.Query("categoryId")
 		var foods []db.FoodModel
 		var err error
@@ -103,9 +84,6 @@ func GetFoods(client *db.PrismaClient) gin.HandlerFunc {
 			}
 
 			foods, err = client.Food.FindMany(
-				db.Food.User.Where(
-					db.User.ID.Equals(int(userID.(uint))),
-				),
 				db.Food.Category.Where(
 					db.Category.ID.Equals(categoryID),
 				),
@@ -113,11 +91,7 @@ func GetFoods(client *db.PrismaClient) gin.HandlerFunc {
 				db.Food.Category.Fetch(),
 			).Exec(c.Request.Context())
 		} else {
-			foods, err = client.Food.FindMany(
-				db.Food.User.Where(
-					db.User.ID.Equals(int(userID.(uint))),
-				),
-			).With(
+			foods, err = client.Food.FindMany().With(
 				db.Food.Category.Fetch(),
 			).Exec(c.Request.Context())
 		}
@@ -131,7 +105,7 @@ func GetFoods(client *db.PrismaClient) gin.HandlerFunc {
 	}
 }
 
-// UpdateFood updates a food item
+// UpdateFood updates a food item in the global catalog
 func UpdateFood(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input FoodInput
@@ -146,24 +120,13 @@ func UpdateFood(client *db.PrismaClient) gin.HandlerFunc {
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
-			return
-		}
-
-		userIDInt := int(userID.(uint))
-
-		// Check if food exists and belongs to the user
-		existingFood, err := client.Food.FindFirst(
+		// Check if food exists
+		existingFood, err := client.Food.FindUnique(
 			db.Food.ID.Equals(foodID),
-			db.Food.User.Where(
-				db.User.ID.Equals(userIDInt),
-			),
 		).Exec(c.Request.Context())
 
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Food not found or does not belong to the user"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Food not found"})
 			return
 		}
 
@@ -187,7 +150,7 @@ func UpdateFood(client *db.PrismaClient) gin.HandlerFunc {
 	}
 }
 
-// DeleteFood deletes a food item
+// DeleteFood deletes a food item from the global catalog
 func DeleteFood(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		foodID, err := strconv.Atoi(c.Param("id"))
@@ -196,30 +159,9 @@ func DeleteFood(client *db.PrismaClient) gin.HandlerFunc {
 			return
 		}
 
-		userID, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
-			return
-		}
-
-		userIDInt := int(userID.(uint))
-
-		// Check if food exists and belongs to the user
-		existingFood, err := client.Food.FindFirst(
-			db.Food.ID.Equals(foodID),
-			db.Food.User.Where(
-				db.User.ID.Equals(userIDInt),
-			),
-		).Exec(c.Request.Context())
-
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Food not found or does not belong to the user"})
-			return
-		}
-
 		// Delete food
 		_, err = client.Food.FindUnique(
-			db.Food.ID.Equals(existingFood.ID),
+			db.Food.ID.Equals(foodID),
 		).Delete().Exec(c.Request.Context())
 
 		if err != nil {
@@ -231,10 +173,10 @@ func DeleteFood(client *db.PrismaClient) gin.HandlerFunc {
 	}
 }
 
-// AddMultipleUserFoods allows adding multiple food entries
-func AddMultipleUserFoods(client *db.PrismaClient) gin.HandlerFunc {
+// AddUserFood adds a new user food entry
+func AddUserFood(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var input MultipleFoodInput
+		var input UserFoodInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 			return
@@ -247,96 +189,132 @@ func AddMultipleUserFoods(client *db.PrismaClient) gin.HandlerFunc {
 		}
 
 		userIDInt := int(userID.(uint))
-		var createdOrExistingFoods []db.FoodModel
 
-		for _, foodInput := range input.Foods {
-			// Check if category exists and belongs to the user
-			category, err := client.Category.FindFirst(
-				db.Category.ID.Equals(foodInput.CategoryID),
-				db.Category.UserID.Equals(userIDInt),
-			).Exec(c.Request.Context())
+		// Check if the food exists
+		_, err := client.Food.FindUnique(
+			db.Food.ID.Equals(input.FoodID),
+		).Exec(c.Request.Context())
 
-			if err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Category not found or does not belong to the user for food: " + foodInput.Name})
-				return
-			}
-
-			// Check if food already exists for this user
-			existingFood, err := client.Food.FindFirst(
-				db.Food.Name.Equals(foodInput.Name),
-				db.Food.User.Where(
-					db.User.ID.Equals(userIDInt),
-				),
-			).Exec(c.Request.Context())
-
-			if err == nil && existingFood != nil {
-				// Food already exists, add it to the result without creating a new one
-				createdOrExistingFoods = append(createdOrExistingFoods, *existingFood)
-				continue
-			}
-
-			// Create food if it doesn't exist
-			food, err := client.Food.CreateOne(
-				db.Food.Name.Set(foodInput.Name),
-				db.Food.Calories.Set(foodInput.Calories),
-				db.Food.User.Link(
-					db.User.ID.Equals(userIDInt),
-				),
-				db.Food.Category.Link(
-					db.Category.ID.Equals(category.ID),
-				),
-			).Exec(c.Request.Context())
-
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create food: " + foodInput.Name + ". Error: " + err.Error()})
-				return
-			}
-
-			createdOrExistingFoods = append(createdOrExistingFoods, *food)
-		}
-
-		if len(createdOrExistingFoods) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No foods were created or found"})
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Food not found"})
 			return
 		}
 
-		c.JSON(http.StatusOK, createdOrExistingFoods)
+		// Create user food entry
+		userFood, err := client.UserFood.CreateOne(
+			db.UserFood.User.Link(
+				db.User.ID.Equals(userIDInt),
+			),
+			db.UserFood.Food.Link(
+				db.Food.ID.Equals(input.FoodID),
+			),
+			db.UserFood.Quantity.Set(input.Quantity),
+			db.UserFood.EatenAt.Set(input.EatenAt),
+		).Exec(c.Request.Context())
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user food entry: " + err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusCreated, userFood)
 	}
 }
 
-func GetFoodsByDate(client *db.PrismaClient) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        userID, exists := c.Get("user_id")
-        if !exists {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
-            return
-        }
+// GetUserFoodsByDate fetches user food entries for a specific date
+func GetUserFoodsByDate(client *db.PrismaClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+			return
+		}
 
-        dateStr := c.Param("date")
-        date, err := time.Parse("2006-01-02", dateStr)
-        if err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use YYYY-MM-DD"})
-            return
-        }
+		dateStr := c.Param("date")
+		date, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use YYYY-MM-DD"})
+			return
+		}
 
-        startOfDay := date.Truncate(24 * time.Hour)
-        endOfDay := startOfDay.Add(24 * time.Hour)
+		startOfDay := date.Truncate(24 * time.Hour)
+		endOfDay := startOfDay.Add(24 * time.Hour)
 
-        foods, err := client.Food.FindMany(
-            db.Food.User.Where(
-                db.User.ID.Equals(int(userID.(uint))),
-            ),
-            db.Food.CreatedAt.Gte(startOfDay),
-            db.Food.CreatedAt.Lt(endOfDay),
-        ).With(
-            db.Food.Category.Fetch(),
-        ).Exec(c.Request.Context())
+		userFoods, err := client.UserFood.FindMany(
+			db.UserFood.User.Where(
+				db.User.ID.Equals(int(userID.(uint))),
+			),
+			db.UserFood.EatenAt.Gte(startOfDay),
+			db.UserFood.EatenAt.Lt(endOfDay),
+		).With(
+			db.UserFood.Food.Fetch().With(
+				db.Food.Category.Fetch(),
+			),
+		).Exec(c.Request.Context())
 
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch foods"})
-            return
-        }
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user foods"})
+			return
+		}
 
-        c.JSON(http.StatusOK, foods)
-    }
+		c.JSON(http.StatusOK, userFoods)
+	}
+}
+
+// AddMultipleUserFoods allows adding multiple user food entries
+func AddMultipleUserFoods(client *db.PrismaClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var inputs []UserFoodInput
+		if err := c.ShouldBindJSON(&inputs); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+			return
+		}
+
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+			return
+		}
+
+		userIDInt := int(userID.(uint))
+		var createdUserFoods []db.UserFoodModel
+
+		for _, input := range inputs {
+			// Check if the food exists
+			_, err := client.Food.FindUnique(
+				db.Food.ID.Equals(input.FoodID),
+			).Exec(c.Request.Context())
+
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Food not found"})
+				return
+			}
+
+			// Create user food entry
+			userFood, err := client.UserFood.CreateOne(
+				db.UserFood.User.Link(
+					db.User.ID.Equals(userIDInt),
+				),
+				db.UserFood.Food.Link(
+					db.Food.ID.Equals(input.FoodID),
+				),
+				db.UserFood.Quantity.Set(input.Quantity),
+				db.UserFood.EatenAt.Set(input.EatenAt),
+			).Exec(c.Request.Context())
+
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user food entry: " + err.Error()})
+				return
+			}
+
+			createdUserFoods = append(createdUserFoods, *userFood)
+		}
+
+		if len(createdUserFoods) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No user foods were created"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, createdUserFoods)
+	}
 }

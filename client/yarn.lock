@@ -3865,6 +3865,7 @@ __metadata:
     expo-font: ~11.4.0
     expo-notifications: ~0.20.1
     expo-secure-store: ~12.3.1
+    expo-speech: ~11.3.0
     expo-splash-screen: ~0.20.5
     expo-status-bar: ~1.6.0
     expo-task-manager: ~11.3.0
@@ -5027,6 +5028,15 @@ __metadata:
   peerDependencies:
     expo: "*"
   checksum: b4e0bb14b39d9276483e6d219a445399dbe556921fa71c10dbd7927ae8f3fb8c964fab35c7ba4a9e3acc4e944130d779edaf1337c2b8d74ed25b5621ebbb0cd4
+  languageName: node
+  linkType: hard
+
+"expo-speech@npm:~11.3.0":
+  version: 11.3.0
+  resolution: "expo-speech@npm:11.3.0"
+  peerDependencies:
+    expo: "*"
+  checksum: 5c17a6a46e32b177baa2f4ec5d0fee6eef3fb50f14f55db016bcd9436a208a6fa1a6fa437d1194bc772a6966e5e5db52e44e96fb6df41c90a550c476b0e349ec
   languageName: node
   linkType: hard
 

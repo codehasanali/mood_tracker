@@ -18,13 +18,13 @@ import { useFonts, Roboto_400Regular, Roboto_700Bold } from '@expo-google-fonts/
 import { Ionicons } from '@expo/vector-icons';
 import CustomAlert from '../components/Alert';
 import { addMood } from '../service/moodService';
-import { getTags, addTag } from '../service/tagService';
 import { MoodOption, moodOptions } from '../constants/moodOptions';
 import { normalize } from '../utils/normalize';
 import { Category } from '../types/Category';
 import { getCategories } from '../service/categoryService';
-import { Food, FoodInput } from '../service/foodService';
+import { Food, UserFoodInput } from '../types/Food';
 import { useFood } from '../hooks/useFood';
+import useTag from '../hooks/useTag';
 
 interface SelectedFood extends Food {
   quantity: number;
@@ -50,8 +50,8 @@ const MoodOptionComponent: React.FC<{
 const AddMood: React.FC = () => {
   const navigation = useNavigation();
   const { foods, isLoading, error, fetchFoods, addUserFoods } = useFood();
+  const { tags, fetchTags, addTag } = useTag();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedFoods, setSelectedFoods] = useState<SelectedFood[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodOption | null>(null);
@@ -59,9 +59,10 @@ const AddMood: React.FC = () => {
   const [description, setDescription] = useState('');
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertType, setAlertType] = useState<'success' | 'error' | 'warning' | 'info'>('info');
-  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [moodSearchTerm, setMoodSearchTerm] = useState('');
+  const [foodSearchTerm, setFoodSearchTerm] = useState('');
 
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
@@ -76,7 +77,7 @@ const AddMood: React.FC = () => {
 
   const loadCategories = async () => {
     try {
-      const fetchedCategories = await getCategories();
+      const fetchedCategories:any = await getCategories();
       setCategories(fetchedCategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -92,18 +93,19 @@ const AddMood: React.FC = () => {
   }, [fetchFoods]);
 
   const filteredFoods = useMemo(() => {
-    return selectedCategory
-      ? foods.filter((food) => food.categoryId === selectedCategory)
-      : foods;
-  }, [foods, selectedCategory]);
+    if (!foodSearchTerm) return [];
+    return foods.filter((food) => 
+      food.name.toLowerCase().includes(foodSearchTerm.toLowerCase())
+    );
+  }, [foods, foodSearchTerm]);
 
-  const handleCategoryPress = useCallback((categoryId: number) => {
-    setSelectedCategory((prevCategory) => {
-      const newCategory = categoryId === prevCategory ? null : categoryId;
-      fetchFoods();
-      return newCategory;
-    });
-  }, [fetchFoods]);
+  const filteredMoods = useMemo(() => {
+    if (!moodSearchTerm) return [];
+    return moodOptions.filter((mood) =>
+      mood.mood.toLowerCase().includes(moodSearchTerm.toLowerCase()) ||
+      mood.emoji.includes(moodSearchTerm)
+    );
+  }, [moodSearchTerm]);
 
   const handleFoodSelect = useCallback((food: Food) => {
     setSelectedFoods(prev => {
@@ -125,17 +127,6 @@ const AddMood: React.FC = () => {
       )
     );
   }, []);
-
-  const fetchTags = async () => {
-    try {
-      const fetchedTags = await getTags();
-      setTags(fetchedTags);
-    } catch (error) {
-      console.error('Error fetching tags:', error);
-      setAlertMessage('Etiketler yüklenirken bir hata oluştu.');
-      setAlertType('error');
-    }
-  };
 
   const handleMoodSelect = useCallback((mood: MoodOption) => {
     setSelectedMood(mood);
@@ -193,14 +184,13 @@ const AddMood: React.FC = () => {
         tags: selectedTags.map(id => parseInt(id, 10)),
       };
       await addMood(newMood);
-      const foodInputs: FoodInput[] = selectedFoods.map(({ id, name, calories, categoryId, quantity }) => ({
-        id,
-        name,
-        calories,
-        categoryId,
-        quantity
+      
+      const userFoodInputs: any[] = selectedFoods.map(({ id, quantity }) => ({
+        foodId: id,
+        quantity,
+        eatenAt: new Date().toISOString(),
       }));
-      await addUserFoods(foodInputs);
+      await addUserFoods(userFoodInputs);
       
       setAlertMessage('Duygu durumu ve yiyecekler başarıyla kaydedildi.');
       setAlertType('success');
@@ -229,8 +219,6 @@ const AddMood: React.FC = () => {
     </TouchableOpacity>
   ), [selectedTags, handleTagSelect]);
 
-  const memoizedMoodOptions = useMemo(() => moodOptions, []);
-
   if (!fontsLoaded) {
     return <ActivityIndicator />;
   }
@@ -258,7 +246,7 @@ const AddMood: React.FC = () => {
         {alertMessage && <CustomAlert type={alertType} message={alertMessage} />}
 
         <FlatList
-          data={memoizedMoodOptions}
+          data={moodSearchTerm ? filteredMoods : []}
           renderItem={renderMoodOption}
           keyExtractor={item => item.id.toString()}
           numColumns={4}
@@ -268,7 +256,19 @@ const AddMood: React.FC = () => {
             <>
               <Text style={styles.sectionTitle}>Duygu Durumu Seçin</Text>
               <Text style={styles.sectionSubtitle}>Şu anki hissinizi en iyi tanımlayan duyguyu seçin</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Duygu durumu ara..."
+                placeholderTextColor="#B0B0B0"
+                value={moodSearchTerm}
+                onChangeText={setMoodSearchTerm}
+              />
             </>
+          }
+          ListEmptyComponent={
+            moodSearchTerm ? 
+            <Text style={styles.emptyText}>Aradığınız duygu durumu bulunamadı.</Text> :
+            null
           }
           ListFooterComponent={
             <>
@@ -310,50 +310,44 @@ const AddMood: React.FC = () => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.sectionTitle}>Yiyecekler</Text>
-              <FlatList
-                data={categories}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.categoryButton,
-                      selectedCategory === item.id && styles.selectedCategory,
-                    ]}
-                    onPress={() => handleCategoryPress(item.id)}
-                  >
-                    <Text style={styles.categoryButtonText}>{item.name}</Text>
-                  </TouchableOpacity>
-                )}
-                style={styles.categoryList}
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Yiyecek ara..."
+                placeholderTextColor="#B0B0B0"
+                value={foodSearchTerm}
+                onChangeText={setFoodSearchTerm}
               />
-              <FlatList
-                data={filteredFoods}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.foodItem,
-                      selectedFoods.some(f => f.id === item.id) && styles.selectedFoodItem
-                    ]}
-                    onPress={() => handleFoodSelect(item)}
-                  >
-                    <Text style={styles.foodItemText}>{item.name}</Text>
-                    {selectedFoods.some(f => f.id === item.id) && (
-                      <TextInput
-                        style={styles.quantityInput}
-                        keyboardType="numeric"
-                        value={selectedFoods.find(f => f.id === item.id)?.quantity.toString() || ''}
-                        onChangeText={(text) => handleQuantityChange(item.id, text)}
-                      />
-                    )}
-                  </TouchableOpacity>
-                )}
-                refreshControl={
-                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-                }
-              />
+              {foodSearchTerm && (
+                <FlatList
+                  data={filteredFoods}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.foodItem,
+                        selectedFoods.some(f => f.id === item.id) && styles.selectedFoodItem
+                      ]}
+                      onPress={() => handleFoodSelect(item)}
+                    >
+                      <Text style={styles.foodItemText}>{item.name}</Text>
+                      {selectedFoods.some(f => f.id === item.id) && (
+                        <TextInput
+                          style={styles.quantityInput}
+                          keyboardType="numeric"
+                          value={selectedFoods.find(f => f.id === item.id)?.quantity.toString() || ''}
+                          onChangeText={(text) => handleQuantityChange(item.id, text)}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                  }
+                  ListEmptyComponent={
+                    <Text style={styles.emptyText}>Aradığınız yiyecek bulunamadı.</Text>
+                  }
+                />
+              )}
               <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
                 <Text style={styles.saveButtonText}>Durum bilgisi ve yiyecekleri kaydet</Text>
               </TouchableOpacity>
@@ -540,6 +534,21 @@ const styles = StyleSheet.create({
     borderRadius: normalize(4),
     width: normalize(40),
     textAlign: 'center',
+  },
+  searchInput: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: normalize(8),
+    padding: normalize(12),
+    marginBottom: normalize(12),
+    color: '#FFFFFF',
+    fontFamily: 'Roboto_400Regular',
+    fontSize: normalize(16),
+  },
+  emptyText: {
+    color: '#B0B0B0',
+    textAlign: 'center',
+    marginTop: normalize(20),
+    fontFamily: 'Roboto_400Regular',
   },
 });
 

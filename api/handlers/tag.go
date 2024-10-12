@@ -60,8 +60,6 @@ func CreateTag(client *db.PrismaClient) gin.HandlerFunc {
     }
 }
 
-
-
 func GetAllTags(client *db.PrismaClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userIDInterface, exists := c.Get("user_id")

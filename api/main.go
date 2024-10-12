@@ -68,8 +68,6 @@ func main() {
 			categoriesGroup.GET("/:id", handler.GetCategoryByID(client))
 			categoriesGroup.PUT("/:id", handler.UpdateCategory(client))
 			categoriesGroup.DELETE("/:id", handler.DeleteCategory(client))
-			categoriesGroup.POST("/mood/:moodId/:categoryId", handler.AssignCategoryToMood(client))
-			categoriesGroup.DELETE("/mood/:moodId/:categoryId", handler.RemoveCategoryFromMood(client))
 		}
 
 		// Food routes
@@ -80,7 +78,7 @@ func main() {
 			foodGroup.PUT("/:id", handler.UpdateFood(client))
 			foodGroup.DELETE("/:id", handler.DeleteFood(client))
 			foodGroup.POST("/multiple", handler.AddMultipleUserFoods(client))
-			foodGroup.GET("/date/:date", handler.GetFoodsByDate(client))
+
 		}
 	}
 

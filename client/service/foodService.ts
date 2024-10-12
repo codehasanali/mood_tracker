@@ -1,48 +1,45 @@
-/**
- * Food service module for handling food-related API operations.
- */
-
 import api from "../api";
 
 /**
  * Represents a food item.
  */
 export interface Food {
-  id: number;
-  name: string;
-  calories: number;
-  categoryId: number;
+  id: number; // Unique identifier for the food item
+  name: string; // Name of the food item
+  calories: number; // Caloric content of the food item
+  categoryId: number; // Identifier for the category the food belongs to
 }
 
 /**
- * Represents input data for creating a food item.
+ * Represents the input data required to create or update a food item.
  */
 export interface FoodInput {
-  name: string;
-  calories: number;
-  categoryId: number;
+  name: string; // Name of the food item
+  calories: number; // Caloric content of the food item
+  categoryId: number; // Identifier for the category the food belongs to
 }
 
 /**
- * Represents input data for creating multiple food items.
+ * Represents input data for adding multiple food items.
  */
 export interface MultipleFoodInput {
-  foods: FoodInput[];
+  foods: FoodInput[]; // Array of food input data
 }
 
 /**
- * Represents an API error.
+ * Handles API errors by returning a formatted error message.
+ * @param error - The error object caught during the API call.
+ * @param message - A custom message to include in the error.
+ * @returns A new Error object with a formatted message.
  */
-export interface APIError {
-  message: string;
-  code?: string;
-  status?: number;
-}
+const handleApiError = (error: unknown, message: string): Error => {
+  return new Error(`Error: ${error instanceof Error ? error.message : 'Unknown error'} - ${message}`);
+};
 
 /**
- * Fetches all foods from the API.
- * @returns A promise that resolves to an array of Food objects.
- * @throws {APIError} If the API request fails.
+ * Retrieves all food items from the API.
+ * @returns A Promise containing an array of Food objects.
+ * @throws Throws an error if the API call fails.
  */
 export const getFoods = async (): Promise<Food[]> => {
   try {
@@ -54,10 +51,10 @@ export const getFoods = async (): Promise<Food[]> => {
 };
 
 /**
- * Creates a new food item.
- * @param food - The food item to create.
- * @returns A promise that resolves to the created Food object.
- * @throws {APIError} If the API request fails.
+ * Creates a new food item in the API.
+ * @param food - The food data to be created.
+ * @returns A Promise containing the created Food object.
+ * @throws Throws an error if the API call fails.
  */
 export const createFood = async (food: FoodInput): Promise<Food> => {
   try {
@@ -69,11 +66,11 @@ export const createFood = async (food: FoodInput): Promise<Food> => {
 };
 
 /**
- * Updates an existing food item.
+ * Updates an existing food item in the API.
  * @param id - The ID of the food item to update.
  * @param food - The updated food data.
- * @returns A promise that resolves to the updated Food object.
- * @throws {APIError} If the API request fails.
+ * @returns A Promise containing the updated Food object.
+ * @throws Throws an error if the API call fails.
  */
 export const updateFood = async (id: number, food: Partial<FoodInput>): Promise<Food> => {
   try {
@@ -85,9 +82,9 @@ export const updateFood = async (id: number, food: Partial<FoodInput>): Promise<
 };
 
 /**
- * Deletes a food item.
+ * Deletes a food item from the API.
  * @param id - The ID of the food item to delete.
- * @throws {APIError} If the API request fails.
+ * @throws Throws an error if the API call fails.
  */
 export const deleteFood = async (id: number): Promise<void> => {
   try {
@@ -98,10 +95,10 @@ export const deleteFood = async (id: number): Promise<void> => {
 };
 
 /**
- * Adds multiple food items for a user.
- * @param foods - An array of food items to add.
- * @returns A promise that resolves to an array of created Food objects.
- * @throws {APIError} If the API request fails.
+ * Adds multiple food items for the user in the API.
+ * @param foods - An array of food input data to be added.
+ * @returns A Promise containing an array of created Food objects.
+ * @throws Throws an error if the API call fails.
  */
 export const addMultipleUserFoods = async (foods: FoodInput[]): Promise<Food[]> => {
   try {
@@ -113,37 +110,10 @@ export const addMultipleUserFoods = async (foods: FoodInput[]): Promise<Food[]> 
 };
 
 /**
- * Handles API errors and formats them into APIError objects.
- * @param error - The error caught from the API request.
- * @param defaultMessage - A default error message to use if no specific message is available.
- * @returns An APIError object.
- */
-const handleApiError = (error: unknown, defaultMessage: string): APIError => {
-  if (error instanceof Error) {
-    const apiError: APIError = {
-      message: error.message || defaultMessage,
-    };
-
-    if ('response' in error && error.response) {
-      const response = error.response as { data?: { message?: string; code?: string }; status?: number };
-      apiError.message = response.data?.message || apiError.message;
-      apiError.code = response.data?.code;
-      apiError.status = response.status;
-    }
-
-    return apiError;
-  }
-
-  return {
-    message: defaultMessage,
-  };
-};
-
-/**
- * Fetches foods for a specific date.
- * @param date - The date for which to fetch foods.
- * @returns A promise that resolves to an array of Food objects.
- * @throws {APIError} If the API request fails.
+ * Retrieves food items by date from the API.
+ * @param date - The date to filter food items.
+ * @returns A Promise containing an array of Food objects.
+ * @throws Throws an error if the API call fails.
  */
 export const getFoodsByDate = async (date: string): Promise<Food[]> => {
   try {
@@ -151,5 +121,20 @@ export const getFoodsByDate = async (date: string): Promise<Food[]> => {
     return response.data;
   } catch (error) {
     throw handleApiError(error, 'Failed to fetch foods by date');
+  }
+};
+
+export interface UserFoodInput {
+  foodId: number;
+  quantity: number;
+  eatenAt: string;
+}
+
+export const addUserFoods = async (userFoods: UserFoodInput[]): Promise<Food[]> => {
+  try {
+    const response = await api.post<Food[]>('/foods/multiple', userFoods);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, 'Failed to add user foods');
   }
 };

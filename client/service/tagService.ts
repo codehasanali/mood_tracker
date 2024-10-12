@@ -1,51 +1,43 @@
-import api from "../api";
-import { Tag } from "../types/Mood";
+import api from "../api";const handleApiError = (error: unknown, message: string): Error => {
+  return new Error(`Error: ${error instanceof Error ? error.message : 'Unknown error'} - ${message}`);
+};
 
-/**
- * Adds a new tag for the user.
- * @param tagData - The tag data to be added.
- * @param tagData.name - The name of the tag.
- * @param tagData.isPublic - Whether the tag is public or not.
- * @returns A Promise containing the created Tag object.
- * @throws Throws an error if the API call fails.
- */
-export const addTag = async (tagData: { name: string; isPublic: boolean }): Promise<Tag> => {
+
+export interface Tag {
+  id: string;
+  name: string;
+  isPublic: boolean;
+  userId: string;
+}
+
+export interface TagInput {
+  name: string;
+  isPublic: boolean;
+}
+
+export const addTag = async (tagData: TagInput): Promise<Tag> => {
   try {
     const response = await api.post<Tag>('/tags', tagData);
     return formatTag(response.data);
   } catch (error) {
-    console.error('Error adding tag:', error);
-    throw error;
+    throw handleApiError(error, 'Failed to add tag');
   }
 };
 
-/**
- * Retrieves all tags for the logged-in user.
- * @returns A Promise containing an array of Tag objects.
- * @throws Throws an error if the API call fails.
- */
 export const getTags = async (): Promise<Tag[]> => {
   try {
     const response = await api.get<Tag[]>('/tags');
     return response.data.map(formatTag);
   } catch (error) {
-    console.error('Error fetching tags:', error);
-    throw error;
+    throw handleApiError(error, 'Failed to fetch tags');
   }
 };
 
-/**
- * Adds an existing tag to the user.
- * @param tagId - The ID of the tag to be added.
- * @returns A Promise indicating success.
- * @throws Throws an error if the API call fails.
- */
 export const addUserTag = async (tagId: number): Promise<void> => {
   try {
     await api.post('/user-tags', { tagId });
   } catch (error) {
-    console.error('Error adding user tag:', error);
-    throw error;
+    throw handleApiError(error, 'Failed to add user tag');
   }
 };
 

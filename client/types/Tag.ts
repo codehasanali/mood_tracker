@@ -5,7 +5,13 @@ export interface Tag {
   createdAt: Date;
   updatedAt: Date;
 }
-
+export interface TagInput {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 export interface CreateTagDto {
   name: string;
   color?: string;
@@ -23,3 +29,8 @@ export interface TagResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+
+
+
+
